@@ -6,14 +6,15 @@ import sys
 from typing import TypedDict
 
 from dotenv import load_dotenv
-from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
+from ollama import Client, ChatResponse
+# from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, StateGraph
 
 load_dotenv()
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY", "")
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+#os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+os.environ["OLLAMA_API_KEY"] = os.getenv("OLLAMA_API_KEY", "")
 
 class NewsGraphState(TypedDict):
     query: str
@@ -24,10 +25,11 @@ class NewsGraphState(TypedDict):
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "30"))
 OLLAMA_RETRIES = int(os.getenv("OLLAMA_RETRIES", "2"))
 
-AGENT_LLM = ChatOpenAI(
-    model="gpt-4o",  # Update with your local model name
-    temperature=0.2,
+OLLAMA_CLIENT = Client(
+    host="https://ollama.com",
+    headers={"Authorization": f"Bearer {os.getenv('OLLAMA_API_KEY')}"},
 )
+
 MAX_SEARCH_CHARS = 12000
 MAX_CURATED_CHARS = 8000
 
@@ -47,7 +49,7 @@ def _coerce_message_content(response: object) -> str:
 
 def _invoke_llm_with_timeout(prompt: str) -> object:
     executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(AGENT_LLM.invoke, prompt)
+    future = executor.submit(OLLAMA_CLIENT.chat, model="gemma3:4b", messages=[{"role": "user", "content": prompt}], stream=False)
     try:
         return future.result(timeout=OLLAMA_TIMEOUT_SECONDS)
     except FuturesTimeoutError as exc:
